@@ -6638,7 +6638,7 @@ function renderShops() {
   window.ftSaveCredit=function(i){if(!ensureOwner())return;const s=dbShops[i], amount=Number(document.getElementById('ft_aa').value)||0, type=document.getElementById('ft_at').value, reason=document.getElementById('ft_ar').value.trim(), date=document.getElementById('ft_ad').value, oldLimit=s.creditLimit||0,newLimit=Number(document.getElementById('ft_cl').value)||0;if(!reason)return alert('Verification note is required.');s.creditLimit=newLimit;localStorage.setItem('ht_shops',JSON.stringify(dbShops));if(amount>0){const id='ADJ_'+Date.now();dbLedgerAdjustments.push({id,date,type,amount,reason,shop:s.name,createdAt:new Date().toISOString(),createdBy:currentUser.username});localStorage.setItem('ht_ledger_adjustments',JSON.stringify(dbLedgerAdjustments));audit('Created','Market Credit',s.name,id,`${type} adjustment Rs. ${amount} — ${reason}`)}audit('Updated','Market Credit',s.name,s.name,`Credit limit changed Rs. ${oldLimit} -> Rs. ${newLimit}.`);ftCloseCrud();renderShops();renderMarketCreditReport();alert('Market credit updated and logged.');};
   window.ftDeleteCreditAdjustment=function(ref){if(!ensureOwner())return;const idx=dbLedgerAdjustments.findIndex(a=>a.id===ref);if(idx<0)return;const a=dbLedgerAdjustments[idx];if(!confirm(`Delete this market credit adjustment ${ref}?`))return;dbLedgerAdjustments.splice(idx,1);localStorage.setItem('ht_ledger_adjustments',JSON.stringify(dbLedgerAdjustments));audit('Deleted','Market Credit',a.shop,ref,`Market credit adjustment deleted: ${a.type} Rs. ${a.amount} — ${a.reason}`);renderMarketCreditReport();};
   window.ftViewCredit=function(name){const el=document.getElementById('creditReportShopFilter');if(el){el.value=name;renderMarketCreditReport();}};
-  const oldStock=window.renderLiveStockInventory;window.renderLiveStockInventory=function(){oldStock();const tb=document.getElementById('liveStockInventoryTbody');if(!tb)return;[...tb.querySelectorAll('tr')].forEach((tr,i)=>{const td=document.createElement('td');td.innerHTML=`<button class="ft-action-btn ft-edit" onclick="ftEditStock(${i})">Edit</button> <button class="ft-action-btn ft-delete" onclick="ftDeleteStock(${i})">Delete</button>`;tr.appendChild(td);});};
+  // Actions are rendered by the authoritative Live Stock renderer. Do not append a duplicate Actions column.
   const oldShops=window.renderShops;window.renderShops=function(){oldShops();const tb=document.getElementById('shopsTable');if(!tb)return;[...tb.querySelectorAll('tr')].forEach((tr,i)=>{if(tr.children.length>=6){const contact=document.createElement('td');const shop=dbShops[i];contact.textContent=shop?.contact||'--';tr.insertBefore(contact,tr.children[2]);}const td=document.createElement('td');td.innerHTML=`<button class="ft-action-btn ft-edit" onclick="ftEditShop(${i})">Edit</button> <button class="ft-action-btn ft-delete" onclick="ftDeleteShop(${i})">Delete</button>`;tr.appendChild(td);});};
   const oldCredit=window.renderMarketCreditReport;window.renderMarketCreditReport=function(){oldCredit();const tb=document.getElementById('marketCreditReportTbody');if(!tb)return;[...tb.querySelectorAll('tr')].forEach(tr=>{const shopName=tr.children[1]?.textContent?.trim();const i=dbShops.findIndex(s=>s.name===shopName);if(i<0)return;const td=document.createElement('td');td.innerHTML=`<button class="ft-action-btn ft-edit" onclick="ftEditCredit(${i})">Edit</button> <button class="ft-action-btn ft-view" onclick="ftViewCredit('${esc(shopName).replace(/'/g,"\\'")}')">Ledger</button>`;tr.appendChild(td);});};
   window.renderActivityLog=function(){const from=document.getElementById('activityFrom')?.value||'',to=document.getElementById('activityTo')?.value||'',user=document.getElementById('activityUser')?.value||'ALL',act=document.getElementById('activityAction')?.value||'ALL',q=(document.getElementById('activitySearch')?.value||'').toLowerCase();let rows=(dbAuditLog||[]).filter(x=>{const d=String(x.date||'').slice(0,10);return(!from||d>=from)&&(!to||d<=to)&&(user==='ALL'||x.user===user)&&(act==='ALL'||x.action===act)&&(!q||JSON.stringify(x).toLowerCase().includes(q));}).sort((a,b)=>String(b.date).localeCompare(String(a.date)));document.getElementById('activityLogTbody').innerHTML=rows.map(x=>`<tr><td>${esc(new Date(x.date).toLocaleString())}</td><td><strong>${esc(x.user)}</strong></td><td><span class="ft-log-pill">${esc(x.module||'System')}</span></td><td>${esc(x.action)}</td><td>${esc(x.record||x.shop||'')}</td><td>${esc(x.reference||'')}</td><td>${esc(x.details||'')}</td></tr>`).join('')||'<tr><td colspan="7">No activity found.</td></tr>';};
@@ -6821,6 +6821,141 @@ function renderShops() {
   const oldRender=window.ftRenderFinance; window.ftRenderFinance=function(){if(typeof oldRender==='function')oldRender();render();};
   const oldOpen=window.openTab; if(typeof oldOpen==='function'&&!window.__ftV27PayWrapped){window.openTab=function(id){const r=oldOpen.apply(this,arguments);setTimeout(()=>{if(id==='paymentAccountsTab')render();},0);return r};window.__ftV27PayWrapped=true;}
   document.addEventListener('DOMContentLoaded',()=>{ensure();setTimeout(render,500);});
+})();
+</script>
+
+
+<script id="ft-v52-purchase-list-authoritative-fix">
+(function(){
+  'use strict';
+  // The database arrays are declared with top-level `let`, so they are not
+  // automatically exposed as window.dbPurchaseInvoices. Several later repair
+  // scripts were reading the window property and therefore showed an empty list
+  // even though the saved purchase existed in localStorage.
+  try {
+    window.dbPurchaseInvoices = dbPurchaseInvoices;
+    window.dbStock = dbStock;
+  } catch(e) {}
+
+  function N52(v){ const n=Number(v); return Number.isFinite(n)?n:0; }
+  function M52(v){ return 'Rs. '+N52(v).toLocaleString(); }
+  function E52(v){ return String(v==null?'':v).replace(/[&<>"']/g,m=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m]||m)); }
+
+  window.renderPurchaseInvoicesList=function(){
+    const body=document.getElementById('purInvoicesListTbody');
+    if(!body)return;
+    let arr=[];
+    try {
+      arr = Array.isArray(dbPurchaseInvoices) ? dbPurchaseInvoices : [];
+    } catch(e) {
+      try { arr=JSON.parse(localStorage.getItem('ht_purchase_invoices')||'[]'); } catch(x){ arr=[]; }
+    }
+    if(!Array.isArray(arr))arr=[];
+    body.innerHTML=arr.map((p,i)=>{
+      const items=Array.isArray(p.items)?p.items:[];
+      const total=N52(p.totalAmt!=null?p.totalAmt:p.total);
+      const paid=N52(p.paidNow);
+      const due=N52(p.dueAmount!=null?p.dueAmount:(total-paid));
+      return `<tr>
+        <td><input type="checkbox" value="${i}"></td>
+        <td><strong>${E52(p.invNo||p.invoiceNo||'--')}</strong></td>
+        <td>${E52(p.date||'')}</td>
+        <td>${E52(p.supplier||'--')}</td>
+        <td>${E52(p.category||'--')}</td>
+        <td>${items.length}</td>
+        <td>${M52(total)}</td>
+        <td>${M52(paid)}</td>
+        <td><strong>${M52(due)}</strong></td>
+        <td style="white-space:nowrap">
+          <button type="button" class="btn-edit" onclick="ftEditPurchaseInvoice(${i})">✏️ Edit</button>
+          <button type="button" class="btn-delete" onclick="deletePurchaseInvoice(${i})">🗑 Delete</button>
+        </td>
+      </tr>`;
+    }).join('') || '<tr><td colspan="10">No purchase invoices found.</td></tr>';
+  };
+
+  // Keep the public alias synchronized for the existing edit/delete repair code.
+  window.ftSyncPurchaseAliases=function(){
+    try{ window.dbPurchaseInvoices=dbPurchaseInvoices; window.dbStock=dbStock; }catch(e){}
+    window.renderPurchaseInvoicesList();
+  };
+
+  document.addEventListener('DOMContentLoaded',function(){
+    setTimeout(window.ftSyncPurchaseAliases,120);
+    setTimeout(window.ftSyncPurchaseAliases,500);
+  });
+})();
+</script>
+
+
+<!-- FATIMA TECH FINAL v60 — AUTHORITATIVE PURCHASE/STOCK STATE GUARD -->
+<script id="ft-v60-authoritative-purchase-stock-guard">
+(function(){
+  'use strict';
+  const N=v=>{const n=Number(v);return Number.isFinite(n)?n:0};
+  const K=v=>String(v==null?'':v).trim().toUpperCase();
+  const read=(key)=>{try{const a=JSON.parse(localStorage.getItem(key)||'[]');return Array.isArray(a)?a:[]}catch(e){return []}};
+  const write=(key,val)=>{try{localStorage.setItem(key,JSON.stringify(val));}catch(e){}};
+
+  function hydrateState(){
+    let savedPurch=read('ht_purchase_invoices');
+    let savedStock=read('ht_stock');
+
+    // Recover saved records into the authoritative top-level arrays only when empty.
+    try{
+      if(Array.isArray(dbPurchaseInvoices) && dbPurchaseInvoices.length===0 && savedPurch.length){
+        dbPurchaseInvoices.splice(0,dbPurchaseInvoices.length,...savedPurch);
+      }
+      if(Array.isArray(dbStock) && dbStock.length===0 && savedStock.length){
+        dbStock.splice(0,dbStock.length,...savedStock);
+      }
+    }catch(e){}
+
+    // If a purchase exists but its stock row is missing, rebuild ONLY that missing row.
+    // Existing rows are never incremented here, so refreshes cannot double the stock.
+    try{
+      const byName=new Map((dbStock||[]).map(s=>[K(s.name),s]));
+      (dbPurchaseInvoices||[]).forEach(p=>{
+        (p.items||[]).forEach(it=>{
+          const key=K(it.name); if(!key || byName.has(key)) return;
+          const pack=N(it.pcsPerCarton)||24;
+          const qty=N(it.totalPcs!=null?it.totalPcs:(N(it.cartonQty)*pack+N(it.pieceQty!=null?it.pieceQty:it.pcsQty)));
+          if(qty<=0)return;
+          const st={
+            id:'STK_REPAIR_'+Date.now()+'_'+Math.random().toString(36).slice(2,7),
+            sku:it.sku||('SKU-'+Date.now().toString().slice(-6)), brand:it.brand||'', category:it.category||'General',
+            name:it.name, imageData:it.imageData||'', pcsPerCarton:pack, qty:qty,
+            costPrice:N(it.pieceCost)||(N(it.cartonCost)/pack), cartonCost:N(it.cartonCost)||(N(it.pieceCost)*pack),
+            tradePrice:N(it.tradePrice), tradePricePiece:N(it.tradePrice), tradePriceCarton:N(it.tradePriceCarton)||(N(it.tradePrice)*pack),
+            retailPrice:N(it.retailPrice), retailPricePiece:N(it.retailPrice), retailPriceCarton:N(it.retailPriceCarton)||(N(it.retailPrice)*pack)
+          };
+          dbStock.push(st); byName.set(key,st);
+        });
+      });
+    }catch(e){console.warn('FT v60 stock recovery skipped',e)}
+
+    // Keep window aliases synchronized, but NEVER let an empty alias overwrite valid arrays.
+    try{window.dbPurchaseInvoices=dbPurchaseInvoices;window.dbStock=dbStock;}catch(e){}
+
+    // Persist only authoritative non-empty data, or an actually empty store that was already empty.
+    try{if((dbPurchaseInvoices||[]).length || !savedPurch.length)write('ht_purchase_invoices',dbPurchaseInvoices||[]);}catch(e){}
+    try{if((dbStock||[]).length || !savedStock.length)write('ht_stock',dbStock||[]);}catch(e){}
+  }
+
+  function renderAll(){
+    hydrateState();
+    ['renderPurchaseInvoicesList','renderPurchaseStockReport','renderSupplierDueReport','renderLiveStockInventory','updateStockDatalist','updatePurchasePaymentSummary'].forEach(fn=>{
+      try{if(typeof window[fn]==='function')window[fn]();}catch(e){console.warn('FT v60',fn,e)}
+    });
+  }
+
+  window.ftRepairPurchaseStockState=function(){
+    hydrateState(); renderAll();
+    return {purchases:(dbPurchaseInvoices||[]).length,stock:(dbStock||[]).length};
+  };
+
+  document.addEventListener('DOMContentLoaded',function(){setTimeout(renderAll,50);setTimeout(renderAll,500);setTimeout(renderAll,1200)});
+  window.addEventListener('load',function(){setTimeout(renderAll,100)});
 })();
 </script>
 
@@ -7130,6 +7265,69 @@ function renderShops() {
     const rows=data.map((e,i)=>`<tr><td>${i+1}</td><td>${esc(e.date)}</td><td>${esc(e.type)}</td><td>${esc(e.ref)}</td><td>${e.items}</td><td>${e.debit?'Rs. '+e.debit.toLocaleString():'—'}</td><td>${e.credit?'Rs. '+e.credit.toLocaleString():'—'}</td><td>${esc(e.note)}</td></tr>`).join('');
     w.document.write(`<!doctype html><html><head><title>${esc(shopName)} Ledger</title><style>@page{size:A4 landscape;margin:8mm}body{font-family:Arial,sans-serif;color:#111}h1{margin:0 0 4px}h2{margin:0 0 8px;font-size:16px}.summary{margin:8px 0;font-size:11px}table{width:100%;border-collapse:collapse}th,td{border:1px solid #888;padding:5px;font-size:8px;vertical-align:top}th{background:#e9edf3}</style></head><body><h1>Fatima Tech — Distribution ERP</h1><h2>Shop Ledger: ${esc(shopName)}</h2><div class="summary">Bills: <b>${s.bills}</b> | Total Sales: <b>Rs. ${s.sales.toLocaleString()}</b> | Invoice Cash: <b>Rs. ${s.invoiceCash.toLocaleString()}</b> | Recovery: <b>Rs. ${s.recovery.toLocaleString()}</b> | Outstanding: <b>Rs. ${s.outstanding.toLocaleString()}</b></div><table><thead><tr><th>#</th><th>Date</th><th>Transaction</th><th>Reference</th><th>Products / Quantity</th><th>Debit</th><th>Credit</th><th>Status / Note</th></tr></thead><tbody>${rows||'<tr><td colspan="8">No transactions</td></tr>'}</tbody></table>
 
+
+
+<script id="ft-v52-purchase-list-authoritative-fix">
+(function(){
+  'use strict';
+  // The database arrays are declared with top-level `let`, so they are not
+  // automatically exposed as window.dbPurchaseInvoices. Several later repair
+  // scripts were reading the window property and therefore showed an empty list
+  // even though the saved purchase existed in localStorage.
+  try {
+    window.dbPurchaseInvoices = dbPurchaseInvoices;
+    window.dbStock = dbStock;
+  } catch(e) {}
+
+  function N52(v){ const n=Number(v); return Number.isFinite(n)?n:0; }
+  function M52(v){ return 'Rs. '+N52(v).toLocaleString(); }
+  function E52(v){ return String(v==null?'':v).replace(/[&<>"']/g,m=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m]||m)); }
+
+  window.renderPurchaseInvoicesList=function(){
+    const body=document.getElementById('purInvoicesListTbody');
+    if(!body)return;
+    let arr=[];
+    try {
+      arr = Array.isArray(dbPurchaseInvoices) ? dbPurchaseInvoices : [];
+    } catch(e) {
+      try { arr=JSON.parse(localStorage.getItem('ht_purchase_invoices')||'[]'); } catch(x){ arr=[]; }
+    }
+    if(!Array.isArray(arr))arr=[];
+    body.innerHTML=arr.map((p,i)=>{
+      const items=Array.isArray(p.items)?p.items:[];
+      const total=N52(p.totalAmt!=null?p.totalAmt:p.total);
+      const paid=N52(p.paidNow);
+      const due=N52(p.dueAmount!=null?p.dueAmount:(total-paid));
+      return `<tr>
+        <td><input type="checkbox" value="${i}"></td>
+        <td><strong>${E52(p.invNo||p.invoiceNo||'--')}</strong></td>
+        <td>${E52(p.date||'')}</td>
+        <td>${E52(p.supplier||'--')}</td>
+        <td>${E52(p.category||'--')}</td>
+        <td>${items.length}</td>
+        <td>${M52(total)}</td>
+        <td>${M52(paid)}</td>
+        <td><strong>${M52(due)}</strong></td>
+        <td style="white-space:nowrap">
+          <button type="button" class="btn-edit" onclick="ftEditPurchaseInvoice(${i})">✏️ Edit</button>
+          <button type="button" class="btn-delete" onclick="deletePurchaseInvoice(${i})">🗑 Delete</button>
+        </td>
+      </tr>`;
+    }).join('') || '<tr><td colspan="10">No purchase invoices found.</td></tr>';
+  };
+
+  // Keep the public alias synchronized for the existing edit/delete repair code.
+  window.ftSyncPurchaseAliases=function(){
+    try{ window.dbPurchaseInvoices=dbPurchaseInvoices; window.dbStock=dbStock; }catch(e){}
+    window.renderPurchaseInvoicesList();
+  };
+
+  document.addEventListener('DOMContentLoaded',function(){
+    setTimeout(window.ftSyncPurchaseAliases,120);
+    setTimeout(window.ftSyncPurchaseAliases,500);
+  });
+})();
+</script>
 
 </body>
 `);w.document.close();setTimeout(()=>{w.focus();w.print();},250);
@@ -7490,6 +7688,69 @@ function reportWindow(title,html){
   const w=window.open('','_blank','width=1200,height=850');if(!w)return alert('Please allow pop-ups for reports.');
   w.document.write(`<!doctype html><html><head><title>${ftesc(title)}</title><style>@page{size:A4 landscape;margin:8mm}body{font-family:Arial,sans-serif;color:#172033;margin:0}.wrap{padding:4mm}h1{font-size:20px;text-align:center;margin:0 0 4px}h2{font-size:14px;text-align:center;margin:0 0 12px;color:#214c86}.meta{text-align:center;font-size:10px;color:#64748b;margin-bottom:12px}.cards{display:grid;grid-template-columns:repeat(4,1fr);gap:6px;margin-bottom:12px}.card{border:1px solid #cbd5e1;border-radius:7px;padding:7px;text-align:center}.card small{display:block;color:#64748b}.card b{font-size:15px}.section{margin-top:10px}.section h3{font-size:12px;margin:5px 0}table{width:100%;border-collapse:collapse}th,td{border:1px solid #aab4c3;padding:5px;font-size:9px}th{background:#e9eef6}tfoot th{background:#f2f4f8}.sig{margin-top:20px;display:flex;justify-content:space-between;font-size:10px}@media print{.wrap{padding:0}}</style></head><body><div class="wrap"><h1>Fatima Tech — Distribution ERP</h1><h2>${ftesc(title)}</h2>${html}</div>
 
+
+
+<script id="ft-v52-purchase-list-authoritative-fix">
+(function(){
+  'use strict';
+  // The database arrays are declared with top-level `let`, so they are not
+  // automatically exposed as window.dbPurchaseInvoices. Several later repair
+  // scripts were reading the window property and therefore showed an empty list
+  // even though the saved purchase existed in localStorage.
+  try {
+    window.dbPurchaseInvoices = dbPurchaseInvoices;
+    window.dbStock = dbStock;
+  } catch(e) {}
+
+  function N52(v){ const n=Number(v); return Number.isFinite(n)?n:0; }
+  function M52(v){ return 'Rs. '+N52(v).toLocaleString(); }
+  function E52(v){ return String(v==null?'':v).replace(/[&<>"']/g,m=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m]||m)); }
+
+  window.renderPurchaseInvoicesList=function(){
+    const body=document.getElementById('purInvoicesListTbody');
+    if(!body)return;
+    let arr=[];
+    try {
+      arr = Array.isArray(dbPurchaseInvoices) ? dbPurchaseInvoices : [];
+    } catch(e) {
+      try { arr=JSON.parse(localStorage.getItem('ht_purchase_invoices')||'[]'); } catch(x){ arr=[]; }
+    }
+    if(!Array.isArray(arr))arr=[];
+    body.innerHTML=arr.map((p,i)=>{
+      const items=Array.isArray(p.items)?p.items:[];
+      const total=N52(p.totalAmt!=null?p.totalAmt:p.total);
+      const paid=N52(p.paidNow);
+      const due=N52(p.dueAmount!=null?p.dueAmount:(total-paid));
+      return `<tr>
+        <td><input type="checkbox" value="${i}"></td>
+        <td><strong>${E52(p.invNo||p.invoiceNo||'--')}</strong></td>
+        <td>${E52(p.date||'')}</td>
+        <td>${E52(p.supplier||'--')}</td>
+        <td>${E52(p.category||'--')}</td>
+        <td>${items.length}</td>
+        <td>${M52(total)}</td>
+        <td>${M52(paid)}</td>
+        <td><strong>${M52(due)}</strong></td>
+        <td style="white-space:nowrap">
+          <button type="button" class="btn-edit" onclick="ftEditPurchaseInvoice(${i})">✏️ Edit</button>
+          <button type="button" class="btn-delete" onclick="deletePurchaseInvoice(${i})">🗑 Delete</button>
+        </td>
+      </tr>`;
+    }).join('') || '<tr><td colspan="10">No purchase invoices found.</td></tr>';
+  };
+
+  // Keep the public alias synchronized for the existing edit/delete repair code.
+  window.ftSyncPurchaseAliases=function(){
+    try{ window.dbPurchaseInvoices=dbPurchaseInvoices; window.dbStock=dbStock; }catch(e){}
+    window.renderPurchaseInvoicesList();
+  };
+
+  document.addEventListener('DOMContentLoaded',function(){
+    setTimeout(window.ftSyncPurchaseAliases,120);
+    setTimeout(window.ftSyncPurchaseAliases,500);
+  });
+})();
+</script>
 
 </body>
 `);
@@ -8268,6 +8529,69 @@ document.addEventListener('DOMContentLoaded',function(){
     w.document.write(`<html><head><title>Investor Statement</title><style>body{font-family:Arial;padding:20px}table{width:100%;border-collapse:collapse}th,td{border:1px solid #ccc;padding:6px;text-align:left}</style></head><body>${html}<script>window.print();<\/script>
 
 
+
+<script id="ft-v52-purchase-list-authoritative-fix">
+(function(){
+  'use strict';
+  // The database arrays are declared with top-level `let`, so they are not
+  // automatically exposed as window.dbPurchaseInvoices. Several later repair
+  // scripts were reading the window property and therefore showed an empty list
+  // even though the saved purchase existed in localStorage.
+  try {
+    window.dbPurchaseInvoices = dbPurchaseInvoices;
+    window.dbStock = dbStock;
+  } catch(e) {}
+
+  function N52(v){ const n=Number(v); return Number.isFinite(n)?n:0; }
+  function M52(v){ return 'Rs. '+N52(v).toLocaleString(); }
+  function E52(v){ return String(v==null?'':v).replace(/[&<>"']/g,m=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m]||m)); }
+
+  window.renderPurchaseInvoicesList=function(){
+    const body=document.getElementById('purInvoicesListTbody');
+    if(!body)return;
+    let arr=[];
+    try {
+      arr = Array.isArray(dbPurchaseInvoices) ? dbPurchaseInvoices : [];
+    } catch(e) {
+      try { arr=JSON.parse(localStorage.getItem('ht_purchase_invoices')||'[]'); } catch(x){ arr=[]; }
+    }
+    if(!Array.isArray(arr))arr=[];
+    body.innerHTML=arr.map((p,i)=>{
+      const items=Array.isArray(p.items)?p.items:[];
+      const total=N52(p.totalAmt!=null?p.totalAmt:p.total);
+      const paid=N52(p.paidNow);
+      const due=N52(p.dueAmount!=null?p.dueAmount:(total-paid));
+      return `<tr>
+        <td><input type="checkbox" value="${i}"></td>
+        <td><strong>${E52(p.invNo||p.invoiceNo||'--')}</strong></td>
+        <td>${E52(p.date||'')}</td>
+        <td>${E52(p.supplier||'--')}</td>
+        <td>${E52(p.category||'--')}</td>
+        <td>${items.length}</td>
+        <td>${M52(total)}</td>
+        <td>${M52(paid)}</td>
+        <td><strong>${M52(due)}</strong></td>
+        <td style="white-space:nowrap">
+          <button type="button" class="btn-edit" onclick="ftEditPurchaseInvoice(${i})">✏️ Edit</button>
+          <button type="button" class="btn-delete" onclick="deletePurchaseInvoice(${i})">🗑 Delete</button>
+        </td>
+      </tr>`;
+    }).join('') || '<tr><td colspan="10">No purchase invoices found.</td></tr>';
+  };
+
+  // Keep the public alias synchronized for the existing edit/delete repair code.
+  window.ftSyncPurchaseAliases=function(){
+    try{ window.dbPurchaseInvoices=dbPurchaseInvoices; window.dbStock=dbStock; }catch(e){}
+    window.renderPurchaseInvoicesList();
+  };
+
+  document.addEventListener('DOMContentLoaded',function(){
+    setTimeout(window.ftSyncPurchaseAliases,120);
+    setTimeout(window.ftSyncPurchaseAliases,500);
+  });
+})();
+</script>
+
 </body>
 `);w.document.close();
   };
@@ -8754,6 +9078,69 @@ function printHtml(title,body){
 </style>
 </head><body>${body}
 
+
+
+<script id="ft-v52-purchase-list-authoritative-fix">
+(function(){
+  'use strict';
+  // The database arrays are declared with top-level `let`, so they are not
+  // automatically exposed as window.dbPurchaseInvoices. Several later repair
+  // scripts were reading the window property and therefore showed an empty list
+  // even though the saved purchase existed in localStorage.
+  try {
+    window.dbPurchaseInvoices = dbPurchaseInvoices;
+    window.dbStock = dbStock;
+  } catch(e) {}
+
+  function N52(v){ const n=Number(v); return Number.isFinite(n)?n:0; }
+  function M52(v){ return 'Rs. '+N52(v).toLocaleString(); }
+  function E52(v){ return String(v==null?'':v).replace(/[&<>"']/g,m=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m]||m)); }
+
+  window.renderPurchaseInvoicesList=function(){
+    const body=document.getElementById('purInvoicesListTbody');
+    if(!body)return;
+    let arr=[];
+    try {
+      arr = Array.isArray(dbPurchaseInvoices) ? dbPurchaseInvoices : [];
+    } catch(e) {
+      try { arr=JSON.parse(localStorage.getItem('ht_purchase_invoices')||'[]'); } catch(x){ arr=[]; }
+    }
+    if(!Array.isArray(arr))arr=[];
+    body.innerHTML=arr.map((p,i)=>{
+      const items=Array.isArray(p.items)?p.items:[];
+      const total=N52(p.totalAmt!=null?p.totalAmt:p.total);
+      const paid=N52(p.paidNow);
+      const due=N52(p.dueAmount!=null?p.dueAmount:(total-paid));
+      return `<tr>
+        <td><input type="checkbox" value="${i}"></td>
+        <td><strong>${E52(p.invNo||p.invoiceNo||'--')}</strong></td>
+        <td>${E52(p.date||'')}</td>
+        <td>${E52(p.supplier||'--')}</td>
+        <td>${E52(p.category||'--')}</td>
+        <td>${items.length}</td>
+        <td>${M52(total)}</td>
+        <td>${M52(paid)}</td>
+        <td><strong>${M52(due)}</strong></td>
+        <td style="white-space:nowrap">
+          <button type="button" class="btn-edit" onclick="ftEditPurchaseInvoice(${i})">✏️ Edit</button>
+          <button type="button" class="btn-delete" onclick="deletePurchaseInvoice(${i})">🗑 Delete</button>
+        </td>
+      </tr>`;
+    }).join('') || '<tr><td colspan="10">No purchase invoices found.</td></tr>';
+  };
+
+  // Keep the public alias synchronized for the existing edit/delete repair code.
+  window.ftSyncPurchaseAliases=function(){
+    try{ window.dbPurchaseInvoices=dbPurchaseInvoices; window.dbStock=dbStock; }catch(e){}
+    window.renderPurchaseInvoicesList();
+  };
+
+  document.addEventListener('DOMContentLoaded',function(){
+    setTimeout(window.ftSyncPurchaseAliases,120);
+    setTimeout(window.ftSyncPurchaseAliases,500);
+  });
+})();
+</script>
 
 </body>
 `);
@@ -9800,6 +10187,69 @@ if(typeof oldOpen==='function'&&!window.__ftV23OpenPatched){
   document.addEventListener('DOMContentLoaded',()=>setTimeout(ensureV51PurchaseSection,600));
 })();
 </script>
+
+<script id="ft-v52-purchase-list-authoritative-fix">
+(function(){
+  'use strict';
+  // The database arrays are declared with top-level `let`, so they are not
+  // automatically exposed as window.dbPurchaseInvoices. Several later repair
+  // scripts were reading the window property and therefore showed an empty list
+  // even though the saved purchase existed in localStorage.
+  try {
+    window.dbPurchaseInvoices = dbPurchaseInvoices;
+    window.dbStock = dbStock;
+  } catch(e) {}
+
+  function N52(v){ const n=Number(v); return Number.isFinite(n)?n:0; }
+  function M52(v){ return 'Rs. '+N52(v).toLocaleString(); }
+  function E52(v){ return String(v==null?'':v).replace(/[&<>"']/g,m=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m]||m)); }
+
+  window.renderPurchaseInvoicesList=function(){
+    const body=document.getElementById('purInvoicesListTbody');
+    if(!body)return;
+    let arr=[];
+    try {
+      arr = Array.isArray(dbPurchaseInvoices) ? dbPurchaseInvoices : [];
+    } catch(e) {
+      try { arr=JSON.parse(localStorage.getItem('ht_purchase_invoices')||'[]'); } catch(x){ arr=[]; }
+    }
+    if(!Array.isArray(arr))arr=[];
+    body.innerHTML=arr.map((p,i)=>{
+      const items=Array.isArray(p.items)?p.items:[];
+      const total=N52(p.totalAmt!=null?p.totalAmt:p.total);
+      const paid=N52(p.paidNow);
+      const due=N52(p.dueAmount!=null?p.dueAmount:(total-paid));
+      return `<tr>
+        <td><input type="checkbox" value="${i}"></td>
+        <td><strong>${E52(p.invNo||p.invoiceNo||'--')}</strong></td>
+        <td>${E52(p.date||'')}</td>
+        <td>${E52(p.supplier||'--')}</td>
+        <td>${E52(p.category||'--')}</td>
+        <td>${items.length}</td>
+        <td>${M52(total)}</td>
+        <td>${M52(paid)}</td>
+        <td><strong>${M52(due)}</strong></td>
+        <td style="white-space:nowrap">
+          <button type="button" class="btn-edit" onclick="ftEditPurchaseInvoice(${i})">✏️ Edit</button>
+          <button type="button" class="btn-delete" onclick="deletePurchaseInvoice(${i})">🗑 Delete</button>
+        </td>
+      </tr>`;
+    }).join('') || '<tr><td colspan="10">No purchase invoices found.</td></tr>';
+  };
+
+  // Keep the public alias synchronized for the existing edit/delete repair code.
+  window.ftSyncPurchaseAliases=function(){
+    try{ window.dbPurchaseInvoices=dbPurchaseInvoices; window.dbStock=dbStock; }catch(e){}
+    window.renderPurchaseInvoicesList();
+  };
+
+  document.addEventListener('DOMContentLoaded',function(){
+    setTimeout(window.ftSyncPurchaseAliases,120);
+    setTimeout(window.ftSyncPurchaseAliases,500);
+  });
+})();
+</script>
+
 </body>
 
 <script id="ft-v29-purchase-render-fix">
@@ -11542,6 +11992,69 @@ try{const mq=window.matchMedia('(prefers-color-scheme: light)');const fn=functio
   if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',init,{once:true});else init();
 })();
 </script>
+
+<script id="ft-v52-purchase-list-authoritative-fix">
+(function(){
+  'use strict';
+  // The database arrays are declared with top-level `let`, so they are not
+  // automatically exposed as window.dbPurchaseInvoices. Several later repair
+  // scripts were reading the window property and therefore showed an empty list
+  // even though the saved purchase existed in localStorage.
+  try {
+    window.dbPurchaseInvoices = dbPurchaseInvoices;
+    window.dbStock = dbStock;
+  } catch(e) {}
+
+  function N52(v){ const n=Number(v); return Number.isFinite(n)?n:0; }
+  function M52(v){ return 'Rs. '+N52(v).toLocaleString(); }
+  function E52(v){ return String(v==null?'':v).replace(/[&<>"']/g,m=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m]||m)); }
+
+  window.renderPurchaseInvoicesList=function(){
+    const body=document.getElementById('purInvoicesListTbody');
+    if(!body)return;
+    let arr=[];
+    try {
+      arr = Array.isArray(dbPurchaseInvoices) ? dbPurchaseInvoices : [];
+    } catch(e) {
+      try { arr=JSON.parse(localStorage.getItem('ht_purchase_invoices')||'[]'); } catch(x){ arr=[]; }
+    }
+    if(!Array.isArray(arr))arr=[];
+    body.innerHTML=arr.map((p,i)=>{
+      const items=Array.isArray(p.items)?p.items:[];
+      const total=N52(p.totalAmt!=null?p.totalAmt:p.total);
+      const paid=N52(p.paidNow);
+      const due=N52(p.dueAmount!=null?p.dueAmount:(total-paid));
+      return `<tr>
+        <td><input type="checkbox" value="${i}"></td>
+        <td><strong>${E52(p.invNo||p.invoiceNo||'--')}</strong></td>
+        <td>${E52(p.date||'')}</td>
+        <td>${E52(p.supplier||'--')}</td>
+        <td>${E52(p.category||'--')}</td>
+        <td>${items.length}</td>
+        <td>${M52(total)}</td>
+        <td>${M52(paid)}</td>
+        <td><strong>${M52(due)}</strong></td>
+        <td style="white-space:nowrap">
+          <button type="button" class="btn-edit" onclick="ftEditPurchaseInvoice(${i})">✏️ Edit</button>
+          <button type="button" class="btn-delete" onclick="deletePurchaseInvoice(${i})">🗑 Delete</button>
+        </td>
+      </tr>`;
+    }).join('') || '<tr><td colspan="10">No purchase invoices found.</td></tr>';
+  };
+
+  // Keep the public alias synchronized for the existing edit/delete repair code.
+  window.ftSyncPurchaseAliases=function(){
+    try{ window.dbPurchaseInvoices=dbPurchaseInvoices; window.dbStock=dbStock; }catch(e){}
+    window.renderPurchaseInvoicesList();
+  };
+
+  document.addEventListener('DOMContentLoaded',function(){
+    setTimeout(window.ftSyncPurchaseAliases,120);
+    setTimeout(window.ftSyncPurchaseAliases,500);
+  });
+})();
+</script>
+
 </body>
 </html>
 
