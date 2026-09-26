@@ -4427,19 +4427,31 @@ html,body{width:100%!important;max-width:100%!important;min-width:0!important;bo
     }
 
     function renderLiveStockInventory() {
-        document.getElementById('liveStockInventoryTbody').innerHTML = dbStock.map(s => `
-            <tr>
+        const tbody = document.getElementById('liveStockInventoryTbody');
+        if (!tbody) return;
+        tbody.innerHTML = dbStock.map(s => {
+            const pack = Number(s.pcsPerCarton) || 24;
+            const qty = Number(s.qty) || 0;
+            const cartons = Math.floor(qty / pack);
+            const loose = qty % pack;
+            const listPriceCtn = Number(s.listPriceCtn != null ? s.listPriceCtn : (Number(s.costPrice) || 0) * pack);
+            const tradePrice = Number(s.tradePricePiece != null ? s.tradePricePiece : (s.tradePrice || 0));
+            const retailPrice = Number(s.retailPricePiece != null ? s.retailPricePiece : (s.retailPrice || 0));
+            const image = s.imageData ? `<img class="ft-product-mini" src="${s.imageData}" alt="${String(s.name || 'Product').replace(/[&<>"']/g,m=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m]))}">` : '📦';
+            return `<tr>
+                <td>${image}</td>
                 <td>${s.sku || 'SKU-001'}</td>
+                <td>${s.brand || 'General'}</td>
                 <td>${s.category || 'General'}</td>
-                <td><strong>${s.name}</strong></td>
-                <td>${s.pcsPerCarton || 24} Pcs/Ctn</td>
-                <td>Rs. ${s.costPrice || 0}</td>
-                <td>Rs. ${s.tradePrice || 0}</td>
-                <td>Rs. ${s.retailPrice || 0}</td>
-                <td>${Math.floor(s.qty / (s.pcsPerCarton || 24))} Ctn / ${s.qty % (s.pcsPerCarton || 24)} Pcs</td>
-                <td><strong>${s.qty} Pcs</strong></td>
-            </tr>
-        `).join('');
+                <td><strong>${s.name || ''}</strong></td>
+                <td>${pack} Pcs/Ctn</td>
+                <td>Rs. ${listPriceCtn.toLocaleString(undefined,{minimumFractionDigits:2,maximumFractionDigits:2})}</td>
+                <td>Rs. ${tradePrice.toLocaleString(undefined,{minimumFractionDigits:2,maximumFractionDigits:2})}</td>
+                <td>Rs. ${retailPrice.toLocaleString(undefined,{minimumFractionDigits:2,maximumFractionDigits:2})}</td>
+                <td>${cartons} Ctn / ${loose} Pcs</td>
+                <td><strong>${qty} Pcs</strong></td>
+            </tr>`;
+        }).join('');
     }
 
     function renderInvoicesTable() {
