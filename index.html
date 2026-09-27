@@ -7263,10 +7263,9 @@ function renderShops() {
   window.printShopLedger=function(shopName){
     const data=buildShopLedgerData(shopName),s=ledgerSummary(shopName),w=window.open('','_blank','width=1200,height=800');if(!w)return alert('Please allow pop-ups for printing.');
     const rows=data.map((e,i)=>`<tr><td>${i+1}</td><td>${esc(e.date)}</td><td>${esc(e.type)}</td><td>${esc(e.ref)}</td><td>${e.items}</td><td>${e.debit?'Rs. '+e.debit.toLocaleString():'—'}</td><td>${e.credit?'Rs. '+e.credit.toLocaleString():'—'}</td><td>${esc(e.note)}</td></tr>`).join('');
-    w.document.write(`<!doctype html><html><head><title>${esc(shopName)} Ledger</title><style>@page{size:A4 landscape;margin:8mm}body{font-family:Arial,sans-serif;color:#111}h1{margin:0 0 4px}h2{margin:0 0 8px;font-size:16px}.summary{margin:8px 0;font-size:11px}table{width:100%;border-collapse:collapse}th,td{border:1px solid #888;padding:5px;font-size:8px;vertical-align:top}th{background:#e9edf3}</style></head><body><h1>Fatima Tech — Distribution ERP</h1><h2>Shop Ledger: ${esc(shopName)}</h2><div class="summary">Bills: <b>${s.bills}</b> | Total Sales: <b>Rs. ${s.sales.toLocaleString()}</b> | Invoice Cash: <b>Rs. ${s.invoiceCash.toLocaleString()}</b> | Recovery: <b>Rs. ${s.recovery.toLocaleString()}</b> | Outstanding: <b>Rs. ${s.outstanding.toLocaleString()}</b></div><table><thead><tr><th>#</th><th>Date</th><th>Transaction</th><th>Reference</th><th>Products / Quantity</th><th>Debit</th><th>Credit</th><th>Status / Note</th></tr></thead><tbody>${rows||'<tr><td colspan="8">No transactions</td></tr>'}</tbody></table>
-
-
-
+    w.document.write(`<!doctype html><html><head><title>${esc(shopName)} Ledger</title><style>@page{size:A4 landscape;margin:8mm}body{font-family:Arial,sans-serif;color:#111}h1{margin:0 0 4px}h2{margin:0 0 8px;font-size:16px}.summary{margin:8px 0;font-size:11px}table{width:100%;border-collapse:collapse}th,td{border:1px solid #888;padding:5px;font-size:8px;vertical-align:top}th{background:#e9edf3}</style></head><body><h1>Fatima Tech — Distribution ERP</h1><h2>Shop Ledger: ${esc(shopName)}</h2><div class="summary">Bills: <b>${s.bills}</b> | Total Sales: <b>Rs. ${s.sales.toLocaleString()}</b> | Invoice Cash: <b>Rs. ${s.invoiceCash.toLocaleString()}</b> | Recovery: <b>Rs. ${s.recovery.toLocaleString()}</b> | Outstanding: <b>Rs. ${s.outstanding.toLocaleString()}</b></div><table><thead><tr><th>#</th><th>Date</th><th>Transaction</th><th>Reference</th><th>Products / Quantity</th><th>Debit</th><th>Credit</th><th>Status / Note</th></tr></thead><tbody>${rows||'<tr><td colspan="8">No transactions</td></tr>'}</tbody></table></body></html>`);w.document.close();setTimeout(()=>{w.focus();w.print();},250);
+  };
+</script>
 <script id="ft-v52-purchase-list-authoritative-fix">
 (function(){
   'use strict';
@@ -7328,10 +7327,8 @@ function renderShops() {
   });
 })();
 </script>
-
-</body>
-`);w.document.close();setTimeout(()=>{w.focus();w.print();},250);
-  };
+<script id="ft-ledger-correction-continuation">
+(function(){
   window.pdfShopLedger=function(shopName){
     const data=buildShopLedgerData(shopName);if(!window.jspdf?.jsPDF)return alert('PDF library is not loaded.');const{jsPDF}=window.jspdf,doc=new jsPDF('landscape','mm','a4'),s=ledgerSummary(shopName);doc.setFontSize(16);doc.text('Fatima Tech — Distribution ERP',14,12);doc.setFontSize(12);doc.text('Shop Ledger: '+String(shopName),14,19);doc.setFontSize(8);doc.text(`Bills: ${s.bills} | Sales: Rs. ${s.sales.toLocaleString()} | Recovery: Rs. ${s.recovery.toLocaleString()} | Outstanding: Rs. ${s.outstanding.toLocaleString()}`,14,25);const body=data.map(e=>[e.date,e.type,e.ref,String(e.items).replace(/<br>/g,' | ').replace(/<[^>]+>/g,''),e.debit?`Rs. ${e.debit.toLocaleString()}`:'—',e.credit?`Rs. ${e.credit.toLocaleString()}`:'—',e.note]);doc.autoTable({head:[['Date','Transaction','Reference','Products / Quantity','Debit','Credit','Note']],body,startY:30,theme:'grid',styles:{fontSize:6,cellPadding:1.5}});doc.save('Shop_Ledger_'+String(shopName).replace(/[^a-z0-9]+/gi,'_')+'_'+new Date().toISOString().slice(0,10)+'.pdf');
   };
