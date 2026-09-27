@@ -11719,6 +11719,172 @@ if(typeof oldOpen==='function'&&!window.__ftV23OpenPatched){
   .sidebar,.main-wrapper,.top-bar,.ft-mobile-menu-btn,.ft-mobile-nav-backdrop{position:relative;z-index:2;}
 </style>
 
+
+<!-- FATIMA TECH — DEVELOPER ONLY FACTORY RESET -->
+<style id="ft-developer-factory-reset-css">
+  #ftDeveloperFactoryResetPanel{display:none;border:1px solid #f59e0b;background:linear-gradient(180deg,#fffaf0,#fff);border-radius:12px;padding:14px;margin-top:12px;box-shadow:0 5px 18px rgba(245,158,11,.08)}
+  #ftDeveloperFactoryResetPanel h4{margin:0 0 6px;color:#92400e;font-size:14px}
+  #ftDeveloperFactoryResetPanel .ft-fr-warning{font-size:11px;color:#7c2d12;line-height:1.65;margin:0 0 10px}
+  #ftDeveloperFactoryResetPanel .ft-fr-list{margin:7px 0 10px;padding-left:20px;font-size:11px;color:#475569;line-height:1.7}
+  #ftDeveloperFactoryResetPanel .ft-fr-actions{display:flex;gap:8px;flex-wrap:wrap}
+  #ftDeveloperFactoryResetPanel .ft-fr-btn{flex:1;min-width:230px;min-height:40px;border:0;border-radius:8px;font-weight:800;cursor:pointer;padding:9px 12px}
+  #ftDeveloperFactoryResetPanel .ft-fr-backup{background:#0f766e;color:#fff}
+  #ftDeveloperFactoryResetPanel .ft-fr-reset{background:#b91c1c;color:#fff}
+  #ftDeveloperFactoryResetPanel .ft-fr-status{font-size:10px;color:#64748b;margin-top:8px}
+  @media(max-width:700px){#ftDeveloperFactoryResetPanel .ft-fr-btn{min-width:100%;}.ft-fr-list{padding-left:18px}}
+</style>
+<script id="ft-developer-factory-reset-js">
+(function(){
+  'use strict';
+  const FACTORY_KEYS=[
+    'ht_invoices','ht_purchase_invoices','ht_shops','ht_stock','ht_recoveries',
+    'ht_recovery_adjustments','ht_staff_responsibilities','ht_booker_accounts',
+    'ht_kpo_logs','ht_expenses','ht_returns','ht_company_claims','ht_ledger_adjustments',
+    'ht_generated_picklists','ht_cash_in_hand','ht_audit_log','ht_day_end_log',
+    'ft_investments','ft_investors','ft_investor_txns','ft_profit_distributions',
+    'ft_staff_advances','ft_salary_records','ft_salary_settings','ft_staff_attendance',
+    'ht_supplier_payments','ht_supplier_dues','ht_purchase_payments',
+    'ht_capital_entries','ht_cash_ledger','ht_finance_transactions',
+    'ft_global_date_filter','ft_cloud_sync_state_v1'
+  ];
+
+  function isDeveloper(){
+    try{
+      const u=(typeof currentUser!=='undefined')?currentUser:null;
+      return !!(u && (u.role==='Developer' || u.isDeveloper===true || String(u.username||'').trim().toLowerCase()==='fatima-tech'));
+    }catch(e){return false;}
+  }
+
+  function downloadFactoryBackup(){
+    const backup={};
+    const keys=[...new Set(FACTORY_KEYS.concat([
+      'ht_users','fatimaTechOwnerSettings','fatimaTechOwnerAuth','fatimaTechTheme','ft_active_session',
+      'fatimaTechLanguage','ft_language','ft_global_date_filter'
+    ]))];
+    keys.forEach(k=>{
+      try{
+        const raw=localStorage.getItem(k);
+        if(raw===null) return;
+        try{backup[k]=JSON.parse(raw);}catch(e){backup[k]=raw;}
+      }catch(e){}
+    });
+    const payload={
+      backupType:'Fatima Tech ERP — Pre Factory Reset Backup',
+      createdAt:new Date().toISOString(),
+      createdBy:'fatima-tech',
+      data:backup
+    };
+    const blob=new Blob([JSON.stringify(payload,null,2)],{type:'application/json'});
+    const url=URL.createObjectURL(blob);
+    const a=document.createElement('a');
+    a.href=url;
+    a.download='FatimaTech_PRE_FACTORY_RESET_BACKUP_'+new Date().toISOString().slice(0,10)+'_'+Date.now()+'.json';
+    document.body.appendChild(a);a.click();a.remove();
+    setTimeout(()=>URL.revokeObjectURL(url),1000);
+    return payload;
+  }
+
+  async function clearCloudIfAvailable(){
+    try{
+      if(!window.ftCloudReady || !window.ftCloudDb) return true;
+      let companyKey='default-company';
+      try{
+        const s=JSON.parse(localStorage.getItem('fatimaTechOwnerSettings')||'{}');
+        companyKey=String(s.companyName||s.distributorName||s.businessName||companyKey).trim().toLowerCase()||companyKey;
+      }catch(e){}
+      await window.ftCloudDb.ref('erpDatabase/'+encodeURIComponent(companyKey)).remove();
+      return true;
+    }catch(e){
+      console.warn('Developer Factory Reset: cloud reset failed',e);
+      return false;
+    }
+  }
+
+  function resetLocalState(){
+    FACTORY_KEYS.forEach(k=>{try{localStorage.removeItem(k);}catch(e){}});
+    // Keep the dedicated Developer account available after reset.
+    // On reload, the normal startup code recreates default users + fatima-tech.
+    try{localStorage.removeItem('ht_users');}catch(e){}
+    try{localStorage.removeItem('ft_active_session');}catch(e){}
+  }
+
+  window.ftDeveloperFactoryReset=async function(){
+    if(!isDeveloper()) return alert('Developer access only.');
+    const first=confirm(
+      '⚠️ FACTORY RESET — DEVELOPER ONLY\n\n'+
+      'This will permanently clear the current test/business data from this ERP browser.\n\n'+
+      'It will remove:\n'+
+      '• Shops & Stock\n• Sales & Purchase Invoices\n• Recoveries & Returns\n• Expenses, Claims & Picklists\n• Investments & Finance/Cash history\n• Supplier Due / Payment records\n• Day End & Activity/Audit history\n• User accounts (default users will be recreated)\n\n'+
+      'Business/Company Settings will be kept so your company setup is not lost.\n\n'+
+      'A backup will be downloaded BEFORE the reset.\n\nContinue?'
+    );
+    if(!first)return;
+
+    const phrase=prompt('Final safety check:\nType exactly FACTORY RESET to continue.');
+    if(phrase!=='FACTORY RESET'){
+      alert('Factory Reset cancelled. Nothing was deleted.');
+      return;
+    }
+
+    const panel=document.getElementById('ftDeveloperFactoryResetPanel');
+    const status=document.getElementById('ftDeveloperFactoryResetStatus');
+    if(status)status.textContent='Creating pre-reset backup...';
+    try{downloadFactoryBackup();}catch(e){
+      alert('Backup could not be created. Factory Reset was cancelled.');
+      if(status)status.textContent='Reset cancelled because backup could not be created.';
+      return;
+    }
+
+    if(status)status.textContent='Backup downloaded. Clearing ERP data...';
+    resetLocalState();
+    const cloudOk=await clearCloudIfAvailable();
+    if(!cloudOk){
+      alert('Local data was reset, but cloud data could not be cleared. Since Firebase is currently not connected, this does not affect your present test build.');
+    }
+    alert('Factory Reset completed. The ERP will now restart with a fresh test environment.');
+    location.reload();
+  };
+
+  function syncFactoryPanel(){
+    const panel=document.getElementById('ftDeveloperFactoryResetPanel');
+    if(!panel)return;
+    panel.style.display=isDeveloper()?'block':'none';
+  }
+
+  function addFactoryPanel(){
+    if(document.getElementById('ftDeveloperFactoryResetPanel')){syncFactoryPanel();return;}
+    const backupTab=document.getElementById('backup');
+    if(!backupTab)return;
+    const panel=document.createElement('div');
+    panel.id='ftDeveloperFactoryResetPanel';
+    panel.innerHTML=`
+      <h4>🛠️ Developer Factory Reset</h4>
+      <p class="ft-fr-warning"><strong>Developer-only destructive control.</strong> Use this after you have finished checking the current test data and want to start the ERP again from a clean test environment.</p>
+      <ul class="ft-fr-list">
+        <li>Clears shops, stock, sales, purchases, recovery, returns and expenses.</li>
+        <li>Clears finance, investments, supplier dues, picklists and Day End history.</li>
+        <li>Resets user accounts to the built-in default users and recreates the <strong>fatima-tech</strong> Developer account after restart.</li>
+        <li>Keeps your Business/Company Settings and Developer access available.</li>
+        <li>Automatically downloads a <strong>pre-reset JSON backup</strong> before deletion.</li>
+      </ul>
+      <div class="ft-fr-actions">
+        <button type="button" class="ft-fr-btn ft-fr-backup" onclick="downloadBackup()">💾 Download Backup First</button>
+        <button type="button" class="ft-fr-btn ft-fr-reset" onclick="ftDeveloperFactoryReset()">⚠️ Factory Reset ERP</button>
+      </div>
+      <div id="ftDeveloperFactoryResetStatus" class="ft-fr-status">Only the Developer login can see and use this option.</div>`;
+    backupTab.appendChild(panel);
+    syncFactoryPanel();
+  }
+
+  document.addEventListener('DOMContentLoaded',function(){
+    setTimeout(addFactoryPanel,350);
+    setTimeout(addFactoryPanel,1200);
+  });
+  window.addEventListener('load',function(){setTimeout(addFactoryPanel,300);});
+  setInterval(syncFactoryPanel,1000);
+})();
+</script>
+
 <!-- FATIMA TECH FINAL UI POLISH: sidebar logo, settings, theme, cursor, readable quotes -->
 <style id="ft-final-ui-polish">
   #ftV57SidebarLogo{display:none !important;}
