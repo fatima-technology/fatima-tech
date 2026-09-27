@@ -6763,8 +6763,14 @@ function renderShops() {
     const w=window.open('','_blank','width=1200,height=800');
     if(!w)return alert('Please allow pop-ups for report printing.');
     const css='@page{size:A4 landscape;margin:8mm}body{font-family:Arial,sans-serif;color:#111;margin:0}.ft-report-print-area{padding:4mm}.ft-report-print-area table{width:100%;border-collapse:collapse}.ft-report-print-area th,.ft-report-print-area td{border:1px solid #999;padding:5px;font-size:9px}.ft-report-print-area th{background:#e5e7eb}.report-meta{font-size:10px;color:#555;margin-bottom:8px}h1{font-size:18px;margin:0}h2{font-size:14px}';
+    const docHtml='<!doctype html><html><head><title>Fatima Tech Report</title><style>'+css+'</style></head><body>'+html+'</body></html>';
     w.document.open();
-    w.document.write('<!doctype html><html><head><title>Fatima Tech Report</title><style>'+css+'</style></head><body>'+html+'
+    w.document.write(docHtml);
+    w.document.close();
+    setTimeout(()=>{try{w.focus();w.print();}catch(e){}},250);
+  };
+})();
+</script>
 <script id="ft-v27-payment-accounts">
 (function(){
   const KEY='ft_payment_accounts_v1', TXKEY='ft_payment_txns_v1';
@@ -6959,13 +6965,6 @@ function renderShops() {
 })();
 </script>
 
-</body></html>');
-    w.document.close();
-    w.focus();
-    setTimeout(()=>w.print(),250);
-};
-})();
-</script>
 <!-- FATIMA TECH — SILENT REFRESH CLOUD SYNC (NO LOADER) -->
 <script id="ft-refresh-cloud-sync-gate">
 (function(){
@@ -7265,7 +7264,8 @@ function renderShops() {
     const rows=data.map((e,i)=>`<tr><td>${i+1}</td><td>${esc(e.date)}</td><td>${esc(e.type)}</td><td>${esc(e.ref)}</td><td>${e.items}</td><td>${e.debit?'Rs. '+e.debit.toLocaleString():'—'}</td><td>${e.credit?'Rs. '+e.credit.toLocaleString():'—'}</td><td>${esc(e.note)}</td></tr>`).join('');
     w.document.write(`<!doctype html><html><head><title>${esc(shopName)} Ledger</title><style>@page{size:A4 landscape;margin:8mm}body{font-family:Arial,sans-serif;color:#111}h1{margin:0 0 4px}h2{margin:0 0 8px;font-size:16px}.summary{margin:8px 0;font-size:11px}table{width:100%;border-collapse:collapse}th,td{border:1px solid #888;padding:5px;font-size:8px;vertical-align:top}th{background:#e9edf3}</style></head><body><h1>Fatima Tech — Distribution ERP</h1><h2>Shop Ledger: ${esc(shopName)}</h2><div class="summary">Bills: <b>${s.bills}</b> | Total Sales: <b>Rs. ${s.sales.toLocaleString()}</b> | Invoice Cash: <b>Rs. ${s.invoiceCash.toLocaleString()}</b> | Recovery: <b>Rs. ${s.recovery.toLocaleString()}</b> | Outstanding: <b>Rs. ${s.outstanding.toLocaleString()}</b></div><table><thead><tr><th>#</th><th>Date</th><th>Transaction</th><th>Reference</th><th>Products / Quantity</th><th>Debit</th><th>Credit</th><th>Status / Note</th></tr></thead><tbody>${rows||'<tr><td colspan="8">No transactions</td></tr>'}</tbody></table></body></html>`);w.document.close();setTimeout(()=>{w.focus();w.print();},250);
   };
-</script>
+
+})();</script>
 <script id="ft-v52-purchase-list-authoritative-fix">
 (function(){
   'use strict';
@@ -7682,76 +7682,33 @@ window.renderExpenseReport=function(){
   if(mb)mb.innerHTML=Object.keys(months).sort().reverse().map(k=>`<tr><td>${k}</td><td>${rows.filter(e=>String(e.date||'').startsWith(k)).length}</td><td><strong>${ftmoney(months[k])}</strong></td></tr>`).join('')||'<tr><td colspan="3">No monthly data.</td></tr>';
 };
 function reportWindow(title,html){
-  const w=window.open('','_blank','width=1200,height=850');if(!w)return alert('Please allow pop-ups for reports.');
-  w.document.write(`<!doctype html><html><head><title>${ftesc(title)}</title><style>@page{size:A4 landscape;margin:8mm}body{font-family:Arial,sans-serif;color:#172033;margin:0}.wrap{padding:4mm}h1{font-size:20px;text-align:center;margin:0 0 4px}h2{font-size:14px;text-align:center;margin:0 0 12px;color:#214c86}.meta{text-align:center;font-size:10px;color:#64748b;margin-bottom:12px}.cards{display:grid;grid-template-columns:repeat(4,1fr);gap:6px;margin-bottom:12px}.card{border:1px solid #cbd5e1;border-radius:7px;padding:7px;text-align:center}.card small{display:block;color:#64748b}.card b{font-size:15px}.section{margin-top:10px}.section h3{font-size:12px;margin:5px 0}table{width:100%;border-collapse:collapse}th,td{border:1px solid #aab4c3;padding:5px;font-size:9px}th{background:#e9eef6}tfoot th{background:#f2f4f8}.sig{margin-top:20px;display:flex;justify-content:space-between;font-size:10px}@media print{.wrap{padding:0}}</style></head><body><div class="wrap"><h1>Fatima Tech — Distribution ERP</h1><h2>${ftesc(title)}</h2>${html}</div>
-
-
-
-<script id="ft-v52-purchase-list-authoritative-fix">
-(function(){
-  'use strict';
-  // The database arrays are declared with top-level `let`, so they are not
-  // automatically exposed as window.dbPurchaseInvoices. Several later repair
-  // scripts were reading the window property and therefore showed an empty list
-  // even though the saved purchase existed in localStorage.
-  try {
-    window.dbPurchaseInvoices = dbPurchaseInvoices;
-    window.dbStock = dbStock;
-  } catch(e) {}
-
-  function N52(v){ const n=Number(v); return Number.isFinite(n)?n:0; }
-  function M52(v){ return 'Rs. '+N52(v).toLocaleString(); }
-  function E52(v){ return String(v==null?'':v).replace(/[&<>"']/g,m=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m]||m)); }
-
-  window.renderPurchaseInvoicesList=function(){
-    const body=document.getElementById('purInvoicesListTbody');
-    if(!body)return;
-    let arr=[];
-    try {
-      arr = Array.isArray(dbPurchaseInvoices) ? dbPurchaseInvoices : [];
-    } catch(e) {
-      try { arr=JSON.parse(localStorage.getItem('ht_purchase_invoices')||'[]'); } catch(x){ arr=[]; }
-    }
-    if(!Array.isArray(arr))arr=[];
-    body.innerHTML=arr.map((p,i)=>{
-      const items=Array.isArray(p.items)?p.items:[];
-      const total=N52(p.totalAmt!=null?p.totalAmt:p.total);
-      const paid=N52(p.paidNow);
-      const due=N52(p.dueAmount!=null?p.dueAmount:(total-paid));
-      return `<tr>
-        <td><input type="checkbox" value="${i}"></td>
-        <td><strong>${E52(p.invNo||p.invoiceNo||'--')}</strong></td>
-        <td>${E52(p.date||'')}</td>
-        <td>${E52(p.supplier||'--')}</td>
-        <td>${E52(p.category||'--')}</td>
-        <td>${items.length}</td>
-        <td>${M52(total)}</td>
-        <td>${M52(paid)}</td>
-        <td><strong>${M52(due)}</strong></td>
-        <td style="white-space:nowrap">
-          <button type="button" class="btn-edit" onclick="ftEditPurchaseInvoice(${i})">✏️ Edit</button>
-          <button type="button" class="btn-delete" onclick="deletePurchaseInvoice(${i})">🗑 Delete</button>
-        </td>
-      </tr>`;
-    }).join('') || '<tr><td colspan="10">No purchase invoices found.</td></tr>';
-  };
-
-  // Keep the public alias synchronized for the existing edit/delete repair code.
-  window.ftSyncPurchaseAliases=function(){
-    try{ window.dbPurchaseInvoices=dbPurchaseInvoices; window.dbStock=dbStock; }catch(e){}
-    window.renderPurchaseInvoicesList();
-  };
-
-  document.addEventListener('DOMContentLoaded',function(){
-    setTimeout(window.ftSyncPurchaseAliases,120);
-    setTimeout(window.ftSyncPurchaseAliases,500);
-  });
-})();
-</script>
-
-</body>
-`);
-  w.document.close();setTimeout(()=>{w.focus();w.print();},250);
+  const w=window.open('', '_blank', 'width=1200,height=850');
+  if(!w){ alert('Please allow pop-ups for reports.'); return; }
+  const safeTitle=ftesc(title);
+  const reportHtml='<!doctype html>'
+    + '<html><head><title>'+safeTitle+'</title>'
+    + '<style>@page{size:A4 landscape;margin:8mm}'
+    + 'body{font-family:Arial,sans-serif;color:#172033;margin:0}'
+    + '.wrap{padding:4mm}h1{font-size:20px;text-align:center;margin:0 0 4px}'
+    + 'h2{font-size:14px;text-align:center;margin:0 0 12px;color:#214c86}'
+    + '.meta{text-align:center;font-size:10px;color:#64748b;margin-bottom:12px}'
+    + '.cards{display:grid;grid-template-columns:repeat(4,1fr);gap:6px;margin-bottom:12px}'
+    + '.card{border:1px solid #cbd5e1;border-radius:7px;padding:7px;text-align:center}'
+    + '.card small{display:block;color:#64748b}.card b{font-size:15px}'
+    + '.section{margin-top:10px}.section h3{font-size:12px;margin:5px 0}'
+    + 'table{width:100%;border-collapse:collapse}th,td{border:1px solid #aab4c3;padding:5px;font-size:9px}'
+    + 'th{background:#e9eef6}tfoot th{background:#f2f4f8}'
+    + '.sig{margin-top:20px;display:flex;justify-content:space-between;font-size:10px}'
+    + '@media print{.wrap{padding:0}}'
+    + '</style></head><body><div class="wrap">'
+    + '<h1>Fatima Tech — Distribution ERP</h1>'
+    + '<h2>'+safeTitle+'</h2>'
+    + String(html||'')
+    + '</div></body></html>';
+  w.document.open();
+  w.document.write(reportHtml);
+  w.document.close();
+  setTimeout(function(){try{w.focus();w.print();}catch(e){}},250);
 }
 window.printExpenseReport=function(){
   const [a,b]=ftdateRange('expenseReportFrom','expenseReportTo');renderExpenseReport();
@@ -8522,11 +8479,14 @@ document.addEventListener('DOMContentLoaded',function(){
     const drows=dists().flatMap(d=>(d.allocations||[]).filter(a=>String(a.investorId)===String(id)).map(a=>({date:d.date,type:'Profit Allocated',amount:a.amount,method:'—',remarks:`${d.from} to ${d.to}`})));
     const all=rows.concat(drows).sort((a,b)=>String(a.date).localeCompare(String(b.date)));
     const html=`<div style="padding:10px;"><h3>Investor Statement — ${esc(inv.name)}</h3><p>Profit Share: ${num(inv.share).toFixed(2)}% | Current Capital: ${money(investorCapital(id))} | Profit Payable: ${money(profitEarned(id)-profitPaid(id))}</p><div class="table-responsive"><table><thead><tr><th>Date</th><th>Type</th><th>Amount</th><th>Method</th><th>Remarks</th></tr></thead><tbody>${all.map(x=>`<tr><td>${esc(x.date)}</td><td>${esc(x.type)}</td><td>${money(x.amount)}</td><td>${esc(x.method||'')}</td><td>${esc(x.remarks||'')}</td></tr>`).join('')||'<tr><td colspan="5">No transactions.</td></tr>'}</tbody></table></div></div>`;
-    const w=window.open('','_blank');if(!w)return alert('Please allow pop-ups for investor statements.');
-    w.document.write(`<html><head><title>Investor Statement</title><style>body{font-family:Arial;padding:20px}table{width:100%;border-collapse:collapse}th,td{border:1px solid #ccc;padding:6px;text-align:left}</style></head><body>${html}<script>window.print();<\/script>
-
-
-
+    const w=window.open('','_blank','width=1100,height=800');
+    if(!w)return alert('Please allow pop-ups for investor statements.');
+    const docHtml='<html><head><title>Investor Statement</title><style>body{font-family:Arial;padding:20px}table{width:100%;border-collapse:collapse}th,td{border:1px solid #ccc;padding:6px;text-align:left}th{background:#eef2f7}</style></head><body>'+html+'</body></html>';
+    w.document.open();w.document.write(docHtml);w.document.close();
+    setTimeout(()=>{try{w.focus();w.print();}catch(e){}},250);
+  };
+})();
+</script>
 <script id="ft-v52-purchase-list-authoritative-fix">
 (function(){
   'use strict';
@@ -9056,7 +9016,13 @@ function salarySlipHtml(x){
 }
 function printHtml(title,body){
   const w=window.open('','_blank','width=1000,height=800');if(!w)return;
-  w.document.write(`<!doctype html><html><head><title>${esc(title)}</title><style>body{font-family:Arial,sans-serif;margin:20px;color:#111}h1{margin:0;font-size:22px}table{width:100%;border-collapse:collapse;margin-top:12px}th,td{border:1px solid #999;padding:5px;font-size:11px}th{background:#eef2f7}.slip-head{text-align:center;margin-bottom:12px}.slip-meta{padding:8px;border:1px solid #bbb}.summary{display:grid;grid-template-columns:repeat(3,1fr);gap:6px;margin:10px 0}.money{max-width:520px;margin-left:auto}.money td:last-child{text-align:right}.money .net{font-size:14px;font-weight:bold;background:#eaf8ef}.sign{display:flex;justify-content:space-between;margin-top:40px}@media print{button{display:none}}</style>
+  const css='body{font-family:Arial,sans-serif;margin:20px;color:#111}h1{margin:0;font-size:22px}table{width:100%;border-collapse:collapse;margin-top:12px}th,td{border:1px solid #999;padding:5px;font-size:11px}th{background:#eef2f7}.slip-head{text-align:center;margin-bottom:12px}.slip-meta{padding:8px;border:1px solid #bbb}.summary{display:grid;grid-template-columns:repeat(3,1fr);gap:6px;margin:10px 0}.money{max-width:520px;margin-left:auto}.money td:last-child{text-align:right}.money .net{font-size:14px;font-weight:bold;background:#eaf8ef}.sign{display:flex;justify-content:space-between;margin-top:40px}@media print{button{display:none}}';
+  const docHtml='<!doctype html><html><head><title>'+esc(title)+'</title><style>'+css+'</style></head><body>'+body+'</body></html>';
+  w.document.open();w.document.write(docHtml);w.document.close();
+  setTimeout(()=>{try{w.focus();w.print();}catch(e){}},250);
+}
+})();
+</script>
 <style id="ft-v34-sidebar-clean-final">
 /* FINAL SIDEBAR VISIBILITY FIX: keep desktop sidebar compact and show submenu children only when opened. */
 .sidebar .submenu{display:none !important;visibility:hidden !important;max-height:0 !important;overflow:hidden !important;}
@@ -9073,10 +9039,6 @@ function printHtml(title,body){
   .sidebar .submenu.open{display:block !important;visibility:visible !important;max-height:3000px !important;}
 }
 </style>
-</head><body>${body}
-
-
-
 <script id="ft-v52-purchase-list-authoritative-fix">
 (function(){
   'use strict';
@@ -9139,10 +9101,6 @@ function printHtml(title,body){
 })();
 </script>
 
-</body>
-`);
-  w.document.close();w.focus();setTimeout(()=>w.print(),250);
-}
 window.ftPrintCurrentSalarySlip=function(){
   const staff=currentStaffName('ftPayStaff'),month=document.getElementById('ftPayMonth')?.value||monthStr();if(!staff)return;
   const rec=ftSalaryRecords.find(r=>r.staff===staff&&r.month===month)||salaryCalc(staff,month);
