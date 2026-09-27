@@ -8485,6 +8485,19 @@ document.addEventListener('DOMContentLoaded',function(){
     w.document.open();w.document.write(docHtml);w.document.close();
     setTimeout(()=>{try{w.focus();w.print();}catch(e){}},250);
   };
+
+function init(){
+    const d=today();
+    ['ftInvestorCapitalDate','ftInvestorWithdrawDate','ftProfitDistFrom','ftProfitDistTo'].forEach(id=>{const e=document.getElementById(id);if(e&&!e.value)e.value=d;});
+    refresh();renderDistributions();
+    setTimeout(()=>{refresh();renderDistributions();},300);
+  }
+  const oldFinance=window.ftRenderFinance;
+  if(typeof oldFinance==='function'){
+    window.ftRenderFinance=function(){const r=oldFinance.apply(this,arguments);refresh();renderDistributions();return r;};
+  }
+  document.addEventListener('DOMContentLoaded',init);
+  window.ftRefreshInvestors=function(){refresh();renderDistributions();};
 })();
 </script>
 <script id="ft-v52-purchase-list-authoritative-fix">
@@ -8550,22 +8563,7 @@ document.addEventListener('DOMContentLoaded',function(){
 </script>
 
 </body>
-`);w.document.close();
-  };
-  function init(){
-    const d=today();
-    ['ftInvestorCapitalDate','ftInvestorWithdrawDate','ftProfitDistFrom','ftProfitDistTo'].forEach(id=>{const e=document.getElementById(id);if(e&&!e.value)e.value=d;});
-    refresh();renderDistributions();
-    setTimeout(()=>{refresh();renderDistributions();},300);
-  }
-  const oldFinance=window.ftRenderFinance;
-  if(typeof oldFinance==='function'){
-    window.ftRenderFinance=function(){const r=oldFinance.apply(this,arguments);refresh();renderDistributions();return r;};
-  }
-  document.addEventListener('DOMContentLoaded',init);
-  window.ftRefreshInvestors=function(){refresh();renderDistributions();};
-})();
-</script>
+
 
 <script id="ft-purchase-accounting-migration">
 (function(){
@@ -9098,8 +9096,6 @@ function printHtml(title,body){
     setTimeout(window.ftSyncPurchaseAliases,120);
     setTimeout(window.ftSyncPurchaseAliases,500);
   });
-})();
-</script>
 
 window.ftPrintCurrentSalarySlip=function(){
   const staff=currentStaffName('ftPayStaff'),month=document.getElementById('ftPayMonth')?.value||monthStr();if(!staff)return;
@@ -9143,8 +9139,7 @@ if(typeof oldOpen==='function'&&!window.__ftV23OpenPatched){
 }
 })();
 </script>
-
-
+})();
 <script id="ft-v24-booker-dashboard-actions">
 (function(){
   window.ftOpenBookerMarketCredit=function(){
